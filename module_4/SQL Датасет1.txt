@@ -1,0 +1,35 @@
+-- ƒатасет 1
+WITH seats_count AS -- вместимость всех моделей самолетов
+  (SELECT s.aircraft_code,
+          count(s.seat_no) AS seats_count
+   FROM dst_project.seats AS s
+   LEFT JOIN dst_project.aircrafts AS a ON s.aircraft_code = a.aircraft_code
+   GROUP BY s.aircraft_code), 
+commerce AS -- выручка и загрузка рейсов
+  (SELECT f.flight_id,
+          sum(tf.amount) AS revenue,
+          count(bp.seat_no) AS passengers_count
+   FROM dst_project.flights AS f
+   LEFT JOIN dst_project.ticket_flights AS tf ON tf.flight_id = f.flight_id
+   LEFT JOIN dst_project.boarding_passes AS bp ON bp.ticket_no = tf.ticket_no
+   AND tf.flight_id = bp.flight_id
+   GROUP BY f.flight_id) 
+SELECT f.flight_id, -- сводна€ таблица по рейсам в/из јнапы зимой 2017 года
+	   c.revenue,
+	   c.passengers_count,
+	   sc.seats_count,
+	   2*6371*asin(sqrt(power(sin(radians((apd.latitude-apa.latitude)/2)), 2)+power(sin(radians((apd.longitude-apa.longitude)/2)), 2)*cos(radians(apd.latitude))*cos(radians(apa.latitude)))) AS distance,
+       c.passengers_count * 2*6371*asin(sqrt(power(sin(radians((apd.latitude-apa.latitude)/2)), 2)+power(sin(radians((apd.longitude-apa.longitude)/2)), 2)*cos(radians(apd.latitude))*cos(radians(apa.latitude)))) AS pass_km_revenue,
+	   CAST(c.passengers_count AS FLOAT)/sc.seats_count AS load
+FROM dst_project.flights AS f
+LEFT JOIN dst_project.airports AS apd ON apd.airport_code = f.departure_airport
+LEFT JOIN dst_project.airports AS apa ON apa.airport_code = f.arrival_airport
+LEFT JOIN seats_count AS sc ON sc.aircraft_code = f.aircraft_code
+LEFT JOIN commerce AS c ON c.flight_id = f.flight_id
+WHERE f.status != 'Cancelled'
+  AND (apd.city = 'Anapa'
+       AND (f.actual_departure BETWEEN '2017-12-01' AND '2018-01-01'
+            OR f.actual_departure BETWEEN '2017-01-01' AND '2017-03-01')
+       OR apa.city = 'Anapa'
+       AND (f.actual_arrival BETWEEN '2017-12-01' AND '2018-01-01'
+            OR f.actual_arrival BETWEEN '2017-01-01' AND '2017-03-01'));

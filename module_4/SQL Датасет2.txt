@@ -1,0 +1,23 @@
+-- ƒатасет 2 (билеты с пересадками)
+WITH endpoints AS -- конечные пункты маршрутов
+  (SELECT tf.ticket_no,
+          count(tf.flight_id) OVER (PARTITION BY tf.ticket_no) AS flights_count,
+          FIRST_VALUE(f.departure_airport) OVER (PARTITION BY tf.ticket_no ORDER BY f.scheduled_departure) AS endpoint_departure,
+          FIRST_VALUE(f.arrival_airport) OVER (PARTITION BY tf.ticket_no ORDER BY f.scheduled_departure DESC) AS endpoint_arrival,
+          (f.departure_airport = 'AAQ' OR f.arrival_airport = 'AAQ') AS anapa_route
+   FROM dst_project.ticket_flights AS tf
+   LEFT JOIN dst_project.flights AS f ON f.flight_id = tf.flight_id
+   WHERE (f.actual_departure BETWEEN '2017-12-01' AND '2018-01-01'
+          OR f.actual_departure BETWEEN '2017-01-01' AND '2017-03-01')
+     AND (f.actual_arrival BETWEEN '2017-12-01' AND '2018-01-01'
+          OR f.actual_arrival BETWEEN '2017-01-01' AND '2017-03-01') )
+SELECT ep.ticket_no, -- сводна€ таблица
+ ep.flights_count,
+ apd.city AS city_departure,
+ apa.city AS city_arrival
+FROM endpoints AS ep
+LEFT JOIN dst_project.airports AS apd ON apd.airport_code = ep.endpoint_departure
+LEFT JOIN dst_project.airports AS apa ON apa.airport_code = ep.endpoint_arrival
+WHERE anapa_route = TRUE
+  AND ep.flights_count >= 2
+ORDER BY ep.ticket_no;
